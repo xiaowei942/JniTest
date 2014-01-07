@@ -152,8 +152,27 @@ void CppTest::DoTest(char *msg)
     }
     my_log("Success new a object");
 
+    jclass cls_jnitest = env->FindClass("org/suirui/test/JniTest");
+    if(env->ExceptionOccurred())
+    {
+        my_log("Cannot find JniTest class");
+        env->ExceptionClear();
+        return;
+    }
+    my_log("Success find jnitest class");
+
+    jmethodID mid = env->GetMethodID(cls_jnitest, "printMessage", "(Ljava/lang/String;)V");
+    if(env->ExceptionOccurred())
+    {
+        my_log("Cannot find class method printMessage");
+        return;
+    }
+    my_log("Success get method id");
     my_log("Now call the JniTest class method");
-    env->CallVoidMethod(p_sys->jnitest_class, p_sys->printmsg, obj);
+    char *tmp = "TestJni";
+    jstring jstr = env->NewStringUTF(tmp);
+    //env->CallVoidMethod(p_sys->jnitest_class, p_sys->printmsg, obj);
+    env->CallVoidMethod(cls_jnitest, mid, 2);
 }
 
     extern "C" {
