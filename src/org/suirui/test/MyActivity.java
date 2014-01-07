@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
+import org.suirui.test.R;
 
 public class MyActivity extends Activity implements View.OnClickListener{
     /**
@@ -21,12 +22,20 @@ public class MyActivity extends Activity implements View.OnClickListener{
 
     @Override
     public void onClick(View view) {
+        int ret = JniMethodInit();
         if(view.getId() == R.id.btn_test) {
-            Toast.makeText(getApplicationContext(), "Test", Toast.LENGTH_LONG).show();
+            if (ret==1) {
+                DoTest();
+                Toast.makeText(getApplicationContext(), "Test return: " + ret, Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(getApplicationContext(), "Test return: " + ret, Toast.LENGTH_LONG).show();
+            }
         }
     }
 
     static {
-        System.loadLibrary("Test");
+        System.loadLibrary("jnitest");
     }
+    public native int JniMethodInit();
+    public native void DoTest();
 }
