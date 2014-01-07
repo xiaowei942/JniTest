@@ -46,7 +46,8 @@ namespace my_test
     public:
         CppTest();
         ~CppTest();
-        int Init();
+        void set_env();
+        void DoTest();
         void DoTest(char *msg);
     private:
         struct decoder_sys_t *p_sys;

@@ -7,6 +7,8 @@
 namespace my_test
 {
     my_test::CppTest *ct = NULL;
+    jclass clazz;
+    jobject object;
 
 extern "C" {
     static void my_log(const char *format, ...)
@@ -30,93 +32,19 @@ extern "C" {
         my_log("Jni version is 1.4");
     	return JNI_VERSION_1_4;
     }
-
-    int init(decoder_sys_t *p_sys)
-    {
-        int error = 0;
-        my_log("*************** %s 1 ****************", __FUNCTION__);
-
-        if ((p_sys = (decoder_sys_t *)calloc(1, sizeof(*p_sys))) == NULL)
-            return -1;
-
-        my_log("*************** %s 2 ****************", __FUNCTION__);
-
-        JNIEnv* env = NULL;
-        myVm->AttachCurrentThread(&env, NULL);
-    #if 0
-        for (int i = 0; classes[i].name; i++) {
-            my_log( "%d" , i);
-            *(jclass*)((uint8_t*)p_sys + classes[i].offset) = (jclass) env->NewGlobalRef (
-                (env)->FindClass(classes[i].name) );
-
-            if ((env)->ExceptionOccurred()) {
-                my_log("Unable to find class %s", classes[i].name);
-                (env)->ExceptionClear();
-                goto error;
-            }
-        }
-
-        my_log("*************** %s 3 ****************", __FUNCTION__);
-        jclass last_class;
-        for (int i = 0; members[i].name; i++) {
-            if (i == 0 || strcmp(members[i].pclass, members[i - 1].pclass))
-                last_class = env->FindClass(members[i].pclass);
-
-            if (env->ExceptionOccurred()) {
-                my_log("Unable to find class %s", members[i].pclass);
-                env->ExceptionClear();
-                goto error;
-            }
-
-            switch (members[i].type) {
-            case METHOD:
-                *(jmethodID*)((uint8_t*)p_sys + members[i].offset) =
-                    env->GetMethodID(last_class, members[i].name, members[i].sig);
-                break;
-            case STATIC_METHOD:
-                *(jmethodID*)((uint8_t*)p_sys + members[i].offset) =
-                    env->GetStaticMethodID(last_class, members[i].name, members[i].sig);
-                break;
-            case FIELD:
-                *(jfieldID*)((uint8_t*)p_sys + members[i].offset) =
-                    env->GetFieldID(last_class, members[i].name, members[i].sig);
-                break;
-            }
-            if (env->ExceptionOccurred()) {
-                my_log("Unable to find the member[%d] %s in %s", i,
-                         members[i].name, members[i].pclass);
-                env->ExceptionClear();
-                goto error;
-            }
-        }
-    #endif
-        my_log("Init success");
-        //myVm->DetachCurrentThread();
-        return 1;
-error:
-        //myVm->DetachCurrentThread();
-        return -1;
-        }
 }
 
 CppTest::CppTest()
 {
-    p_sys = new decoder_sys_t();
     my_log("Into CppTest Constructure");
 }
 
 CppTest::~CppTest()
 {
-
     delete(p_sys);
     p_sys=NULL;
     my_log("Into CppTest Destructure");
     myVm->DetachCurrentThread();
-}
-
-int CppTest::Init()
-{
-    return init(p_sys);
 }
 
 void CppTest::DoTest(char *msg)
@@ -152,7 +80,7 @@ void CppTest::DoTest(char *msg)
     }
     my_log("Success new a object");
 
-    jclass cls_jnitest = env->FindClass("org/suirui/test/JniTest");
+    jclass cls_jnitest = env->GetObjectClass(object);
     if(env->ExceptionOccurred())
     {
         my_log("Cannot find JniTest class");
@@ -161,7 +89,7 @@ void CppTest::DoTest(char *msg)
     }
     my_log("Success find jnitest class");
 
-    jmethodID mid = env->GetMethodID(cls_jnitest, "printMessage", "(Ljava/lang/String;)V");
+    jmethodID mid = env->GetMethodID(cls_jnitest, "printMessage", "(I)V");
     if(env->ExceptionOccurred())
     {
         my_log("Cannot find class method printMessage");
@@ -176,15 +104,123 @@ void CppTest::DoTest(char *msg)
 }
 
     extern "C" {
-        JNIEXPORT int JNICALL Java_org_suirui_test_MyActivity_JniMethodInit(JNIEnv *, jobject)
+        JNIEXPORT void JNICALL Java_org_suirui_test_MyActivity_SetEnv(JNIEnv *env, jobject obj)
         {
+            my_log("---------- Into: %s -----------", __FUNCTION__);
             ct = new my_test::CppTest();
-            return ct->Init();
+            if(!ct) {
+                my_log("Error when new a CppTest object", __FUNCTION__);
+                return;
+            }
+            ct->set_env();
+
+            my_log("Now save MyActivity object");
+            object = env->NewGlobalRef(obj); //这个object和MyActivity相关，可以后面用GetObjectClass来获取MyActivity类
+
+            my_log("---------- Out: %s -----------", __FUNCTION__);
         }
 
+        JNIEXPORT void JNICALL Java_org_suirui_test_MyActivity_RunCppThread(JNIEnv *, jobject)
+        {
+            my_log("---------- Into: %s -----------", __FUNCTION__);
+            ct = new my_test::CppTest();
+            if(!ct) {
+                my_log("Error when new a CppTest object", __FUNCTION__);
+                return;
+            }
+            ct->set_env();
+            my_log("---------- Out: %s -----------", __FUNCTION__);
+        }
         JNIEXPORT void JNICALL Java_org_suirui_test_MyActivity_DoTest(JNIEnv *, jobject)
         {
-            ct->DoTest("Test");
+            my_log("---------- Into: %s -----------", __FUNCTION__);
+            if(!ct) {
+                my_log("Error CppTest object is null", __FUNCTION__);
+                return;
+            }
+            ct->DoTest();
+            my_log("---------- Out: %s -----------", __FUNCTION__);
         }
     }
+
+void CppTest::set_env()
+{
+    my_log("---------- Into: %s -----------", __FUNCTION__);
+    JNIEnv *env = NULL;
+    myVm->AttachCurrentThread(&env, NULL);
+
+    my_log("Now find JniTest class");
+    jclass cls = env->FindClass("org/suirui/test/JniTest");
+    if(env->ExceptionOccurred())
+    {
+        my_log("Cannot find JniTest class");
+        env->ExceptionClear();
+        return;
+    }
+    my_log("Now save clazz");
+    clazz = (jclass)env->NewGlobalRef(cls);
+}
+
+void CppTest::DoTest()
+{
+    my_log("---------- Into: %s -----------", __FUNCTION__);
+    JNIEnv *env;
+    myVm->AttachCurrentThread(&env, NULL);
+
+    jclass clazz1 = clazz;
+    jclass clazz2;
+
+    if(object) {
+        clazz2 = env->GetObjectClass(object);
+    }
+
+    if(clazz1)
+    {
+        my_log("Class JniTest is not null");
+
+        jmethodID mid1_1 = env->GetMethodID(clazz1, "<init>", "()V");
+        jobject clsobj1 = env->NewObject(clazz1, mid1_1, "");
+
+        my_log("Success 1");
+        jfieldID fid = env->GetFieldID(clazz1, "test", "I");
+
+        my_log("Success 2");
+        int test = env->GetIntField(clsobj1, fid);
+        my_log("test in JniTest is: %d", test);
+
+        jmethodID mid1_2 = env->GetMethodID(clazz1, "printMessage", "()V");
+        if(env->ExceptionOccurred())
+        {
+            my_log("Cannot find class method printMessage");
+            env->ExceptionClear();
+            return;
+        }
+        my_log("Success get method id");
+        env->CallVoidMethod(clsobj1, mid1_2, "");
+    }
+
+    if(clazz2)
+    {
+        my_log("Class MyActivity is not null");
+
+        jmethodID mid2_1 = env->GetMethodID(clazz2, "<init>", "()V");
+        jobject clsobj2 = env->NewObject(clazz2, mid2_1, "");
+
+        jfieldID fid = env->GetFieldID(clazz2, "test", "I");
+
+        int test = env->GetIntField(clsobj2, fid);
+        my_log("test in MyActivity is: %d", test);
+
+        jmethodID mid2_2 = env->GetMethodID(clazz2, "printMessage", "()V");
+        if(env->ExceptionOccurred())
+        {
+            my_log("Cannot find class method printMessage");
+            env->ExceptionClear();
+            return;
+        }
+        my_log("Success get method id");
+        env->CallVoidMethod(clsobj2, mid2_2, "");
+    }
+    //myVm->DetachCurrentThread();
+}
 }
